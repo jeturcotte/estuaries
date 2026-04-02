@@ -1,3 +1,4 @@
+data/1hr/
 *.csv
 t4d.baseline.1hr.csv.zip
 .DS_Store
