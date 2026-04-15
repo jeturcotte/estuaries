@@ -1,0 +1,80 @@
+{
+  "base_url": "https://nex-gddp-cmip6.s3-us-west-2.amazonaws.com",
+  "models": [
+    {
+      "model": "ACCESS-CM2",
+      "member": "r1i1p1f1"
+    },
+    {
+      "model": "ACCESS-ESM1-5",
+      "member": "r1i1p1f1"
+    },
+    {
+      "model": "BCC-CSM2-MR",
+      "member": "r1i1p1f1"
+    },
+    {
+      "model": "CanESM5",
+      "member": "r1i1p1f1"
+    },
+    {
+      "model": "MRI-ESM2-0",
+      "member": "r1i1p1f1"
+    }
+  ],
+  "variables": [
+    {
+      "variable": "tas",
+      "target_driver": "air_temp",
+      "native_units": "K",
+      "target_units": "C",
+      "conversion_note": "target_c = tas - 273.15"
+    },
+    {
+      "variable": "pr",
+      "target_driver": "precip",
+      "native_units": "kg m-2 s-1",
+      "target_units": "mm day-1",
+      "conversion_note": "target_mm_day = pr * 86400"
+    },
+    {
+      "variable": "sfcWind",
+      "target_driver": "wind_speed",
+      "native_units": "m s-1",
+      "target_units": "m s-1",
+      "conversion_note": "no unit conversion"
+    },
+    {
+      "variable": "rsds",
+      "target_driver": "solar",
+      "native_units": "W m-2",
+      "target_units": "W m-2",
+      "conversion_note": "no unit conversion"
+    }
+  ],
+  "scenario_years": [
+    {
+      "scenario": "historical",
+      "year_start": 1950,
+      "year_end": 2014
+    },
+    {
+      "scenario": "ssp245",
+      "year_start": 2015,
+      "year_end": 2100
+    },
+    {
+      "scenario": "ssp585",
+      "year_start": 2015,
+      "year_end": 2100
+    }
+  ],
+  "station_count": 12,
+  "bbox": {
+    "lon_min": -122.0038,
+    "lon_max": -75.554583,
+    "lat_min": 36.5957,
+    "lat_max": 39.7007
+  },
+  "spatial_sampling_note": "Prefer nearest valid coastal / land-adjacent 0.25-degree cell per station; use bbox only for Chesapeake-wide visual summary products."
+}
