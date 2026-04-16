@@ -1,0 +1,25 @@
+{
+  "n_selected_stations": 12,
+  "n_requested_assets": 1,
+  "n_local_assets": 1,
+  "models": [
+    "ACCESS-CM2"
+  ],
+  "scenarios": [
+    "historical"
+  ],
+  "variables": [
+    "tas"
+  ],
+  "year_start": 1950,
+  "year_end": 1950,
+  "selection_reason_counts": {
+    "chesapeake": 11,
+    "extra_wobbling_complete": 1
+  },
+  "processed_assets": 1,
+  "written_station_files": 12,
+  "lookup_keys": 1,
+  "selection_aggregate_path": "/Users/jeturcotte/Class/CDS-492/estuaries/data/cmip6_station_series/selection_reason_daily_aggregate.csv",
+  "region_aggregate_path": "/Users/jeturcotte/Class/CDS-492/estuaries/data/cmip6_station_series/region_daily_aggregate.csv"
+}

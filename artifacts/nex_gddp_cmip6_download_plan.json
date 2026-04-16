@@ -1,5 +1,6 @@
 {
   "base_url": "https://nex-gddp-cmip6.s3-us-west-2.amazonaws.com",
+  "data_prefix": "NEX-GDDP-CMIP6",
   "models": [
     {
       "model": "ACCESS-CM2",
