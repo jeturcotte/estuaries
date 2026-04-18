@@ -1,6 +1,6 @@
 {
   "n_selected_stations": 12,
-  "n_requested_assets": 1,
+  "n_requested_assets": 65,
   "n_local_assets": 1,
   "models": [
     "ACCESS-CM2"
