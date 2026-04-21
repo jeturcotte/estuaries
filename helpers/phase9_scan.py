@@ -93,22 +93,48 @@ def run_phase9_station_scan(
         phase9_future_dates[ 'doy' ] = phase9_future_dates[ 'date' ].dt.dayofyear.clip( upper = 365 )
         phase9_future_dates = phase9_future_dates.loc[ phase9_future_dates[ 'year' ].isin( phase9_scenario_paths[ 'year' ].dropna( ).astype( int ) ) ].copy( )
 
+    phase9_baseline_value_cols = [ 
+        'water_temp_baseline',
+        'salinity_baseline',
+        'oxygen_baseline',
+        'ph_baseline',
+        'depth_baseline',
+    ]
+    phase9_properties_baseline_fallback = ( 
+        daily_water_final
+        .groupby( [ 'region', 'station' ], as_index = False )
+        .agg( 
+            water_temp_baseline = ( 'water_temp_baseline', 'mean' ),
+            salinity_baseline = ( 'salinity_baseline', 'mean' ),
+            oxygen_baseline = ( 'oxygen_baseline', 'mean' ),
+            ph_baseline = ( 'ph_baseline', 'mean' ),
+            depth_baseline = ( 'depth_baseline', 'mean' ),
+        )
+    )
+
     if phase9_properties_baseline is None:
         if properties_baseline is not None:
             phase9_properties_baseline = properties_baseline.copy( )
 
         else:
-            phase9_properties_baseline = ( 
-                daily_water_final
-                .groupby( [ 'region', 'station' ], as_index = False )
-                .agg( 
-                    water_temp_baseline = ( 'water_temp_baseline', 'mean' ),
-                    salinity_baseline = ( 'salinity_baseline', 'mean' ),
-                    oxygen_baseline = ( 'oxygen_baseline', 'mean' ),
-                    ph_baseline = ( 'ph_baseline', 'mean' ),
-                    depth_baseline = ( 'depth_baseline', 'mean' ),
-                )
-            )
+            phase9_properties_baseline = phase9_properties_baseline_fallback.copy( )
+
+    phase9_properties_baseline = phase9_properties_baseline.merge( 
+        phase9_properties_baseline_fallback,
+        on = [ 'region', 'station' ],
+        how = 'outer',
+        suffixes = ( '', '_fallback' ),
+    )
+    for col in phase9_baseline_value_cols:
+        fallback_col = f'{ col }_fallback'
+        if col not in phase9_properties_baseline.columns:
+            phase9_properties_baseline[ col ] = phase9_properties_baseline[ fallback_col ]
+
+        else:
+            phase9_properties_baseline[ col ] = phase9_properties_baseline[ col ].fillna( phase9_properties_baseline[ fallback_col ] )
+
+        if fallback_col in phase9_properties_baseline.columns:
+            phase9_properties_baseline = phase9_properties_baseline.drop( columns = [ fallback_col ] )
 
     if phase9_cluster_lookup is None:
         if station_baseline is None:
@@ -183,6 +209,16 @@ def run_phase9_station_scan(
     history_annual[ 'scenario' ] = 'observed_history'
     history_annual[ 'oxygen_plot_abs' ] = history_annual[ 'oxygen_warm_min_abs' ]
     history_annual.loc[ history_annual[ 'oxygen_plot_abs' ].isna( ), 'oxygen_plot_abs' ] = history_annual.loc[ history_annual[ 'oxygen_plot_abs' ].isna( ), 'oxygen_abs_annual_mean' ]
+    history_annual_fallback = ( 
+        history_annual
+        .groupby( [ 'region', 'station' ], as_index = False )
+        .agg( 
+            water_temp_hist_annual_fallback = ( 'water_temp_abs_annual_mean', 'mean' ),
+            salinity_hist_annual_fallback = ( 'salinity_abs_annual_mean', 'mean' ),
+            oxygen_hist_annual_fallback = ( 'oxygen_abs_annual_mean', 'mean' ),
+            depth_hist_annual_fallback = ( 'depth_abs_annual_mean', 'mean' ),
+        )
+    )
 
     future_template = ( 
         pd.DataFrame( { 'scenario': phase9_scenarios, '_tmp': 1 } )
@@ -268,6 +304,13 @@ def run_phase9_station_scan(
         future_daily[ 'water_temp_pred' ] = future_daily[ 'water_temp_baseline' ] + future_daily[ 'delta_water_temp_pred_p6' ]
 
         station_future_year = build_phase9_station_year_features( future_daily )
+        station_future_year = station_future_year.merge( history_annual_fallback, on = [ 'region', 'station' ], how = 'left' )
+        station_future_year[ 'water_temp_baseline_annual_mean' ] = station_future_year[ 'water_temp_baseline_annual_mean' ].fillna( station_future_year[ 'water_temp_hist_annual_fallback' ] )
+        station_future_year[ 'salinity_baseline_annual_mean' ] = station_future_year[ 'salinity_baseline_annual_mean' ].fillna( station_future_year[ 'salinity_hist_annual_fallback' ] )
+        station_future_year[ 'oxygen_baseline_annual_mean' ] = station_future_year[ 'oxygen_baseline_annual_mean' ].fillna( station_future_year[ 'oxygen_hist_annual_fallback' ] )
+        if 'depth_baseline_annual_mean' in station_future_year.columns:
+            station_future_year[ 'depth_baseline_annual_mean' ] = station_future_year[ 'depth_baseline_annual_mean' ].fillna( station_future_year[ 'depth_hist_annual_fallback' ] )
+
         for target in phase7_targets:
             model_t = phase7_model_store.get( target )
             feature_cols_t = phase7_feature_store.get( target, [ ] )
@@ -291,6 +334,15 @@ def run_phase9_station_scan(
         station_future_year[ 'oxygen_warm_hypoxic_day_share_abs' ] = station_future_year.get( 'oxygen_warm_hypoxic_day_share_pred', np.nan )
         station_future_year[ 'oxygen_plot_abs' ] = station_future_year[ 'oxygen_warm_min_abs' ]
         station_future_year.loc[ station_future_year[ 'oxygen_plot_abs' ].isna( ), 'oxygen_plot_abs' ] = station_future_year.loc[ station_future_year[ 'oxygen_plot_abs' ].isna( ), 'oxygen_abs_annual_mean' ]
+        station_future_year = station_future_year.drop( columns = [ 
+            col for col in [ 
+                'water_temp_hist_annual_fallback',
+                'salinity_hist_annual_fallback',
+                'oxygen_hist_annual_fallback',
+                'depth_hist_annual_fallback',
+            ]
+            if col in station_future_year.columns
+        ] )
         station_future_year = station_future_year.merge( station_meta, on = [ 'region', 'station' ], how = 'left' )
         future_parts.append( station_future_year )
 
