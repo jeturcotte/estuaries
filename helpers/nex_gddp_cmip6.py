@@ -4,6 +4,7 @@ import pandas as pd
 
 
 NEX_GDDP_BASE_URL = 'https://nex-gddp-cmip6.s3-us-west-2.amazonaws.com'
+NEX_GDDP_DATA_PREFIX = 'NEX-GDDP-CMIP6'
 
 DEFAULT_NEX_MODEL_VARIANTS = { 
     'ACCESS-CM2': 'r1i1p1f1',
@@ -146,6 +147,7 @@ def build_nex_asset_manifest(
     variable_specs = None,
     scenario_years = None,
     base_url = NEX_GDDP_BASE_URL,
+    data_prefix = NEX_GDDP_DATA_PREFIX,
 ):
     """ Build a manifest of NEX-GDDP CMIP6 assets for the given station frame and parameters. """
     models = models or DEFAULT_NEX_MODELS
@@ -173,7 +175,7 @@ def build_nex_asset_manifest(
                     spec = variable_specs[ variable_name ]
                     for year in range( int( year_start ), int( year_end ) + 1 ):
                         filename = f'{ variable_name }_day_{ model_name }_{ scenario_name }_{ member_id }_gn_{ year }.nc'
-                        relative_path = f'{ model_name }/{ scenario_name }/{ member_id }/{ variable_name }/{ filename }'
+                        relative_path = f'{ data_prefix }/{ model_name }/{ scenario_name }/{ member_id }/{ variable_name }/{ filename }'
                         rows.append( { 
                             'region': station_row.region,
                             'station': station_row.station,
@@ -208,6 +210,7 @@ def build_nex_download_plan(
     variable_specs = None,
     scenario_years = None,
     base_url = NEX_GDDP_BASE_URL,
+    data_prefix = NEX_GDDP_DATA_PREFIX,
 ):
     """ Build a download plan for NEX-GDDP CMIP6 assets based on the given station frame and parameters. """
     models = models or DEFAULT_NEX_MODELS
@@ -221,6 +224,7 @@ def build_nex_download_plan(
     # combination, so we summarize the manifest parameters here for a more concise download plan output
     plan = { 
         'base_url': base_url,
+        'data_prefix': data_prefix,
         'models': [ { 'model': model_name, 'member': model_variants[ model_name ] } for model_name in models ],
         'variables': [ { 'variable': variable_name, **variable_specs[ variable_name ] } for variable_name in variables ],
         'scenario_years': [ { 'scenario': name, 'year_start': years[ 0 ], 'year_end': years[ 1 ] } for name, years in scenario_years.items( ) ],
