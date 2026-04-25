@@ -20,29 +20,29 @@ def run_phase9_station_scan(
     daily_water_final,
     first_event,
     flagged_station_keys_final,
-    phase9_scenario_path_csv,
-    build_phase9_demo_paths,
-    add_phase9_driver_rolls,
-    build_phase9_station_year_features,
-    phase9_classify_regime_row,
-    phase9_rolling_window_years,
-    phase6_context_table,
-    phase6_selected_features,
-    phase6_selected_fill_values,
-    phase6_selected_model,
-    phase7_targets,
-    phase7_feature_store,
-    phase7_fill_store,
-    phase7_model_store,
+    scenario_path_csv,
+    build_demo_scenario_paths,
+    add_forecast_driver_rolls,
+    build_forecast_station_year_features,
+    classify_regime_row,
+    forecast_rolling_window_years,
+    air_water_station_context,
+    air_water_feature_cols,
+    air_water_fill_values,
+    air_water_model,
+    response_targets,
+    response_feature_store,
+    response_fill_store,
+    response_model_store,
     station_baseline = None,
     properties_baseline = None,
-    phase9_scenario_paths = None,
-    phase9_scenarios = None,
-    phase9_future_year_min = None,
-    phase9_future_year_max = None,
-    phase9_future_dates = None,
-    phase9_properties_baseline = None,
-    phase9_cluster_lookup = None,
+    scenario_paths = None,
+    forecast_scenarios = None,
+    forecast_year_min = None,
+    forecast_year_max = None,
+    forecast_dates = None,
+    forecast_reference_means = None,
+    forecast_cluster_lookup = None,
     region_codes = None,
     top_n = 12,
     plot_n = 6,
@@ -50,57 +50,57 @@ def run_phase9_station_scan(
     material_share = 0.05,
     progress_every = 20,
 ):
-    if phase9_scenario_paths is None:
-        if Path( phase9_scenario_path_csv ).exists( ):
-            phase9_scenario_paths = pd.read_csv( phase9_scenario_path_csv )
-            path_source = f'external_csv: { phase9_scenario_path_csv }'
+    if scenario_paths is None:
+        if Path( scenario_path_csv ).exists( ):
+            scenario_paths = pd.read_csv( scenario_path_csv )
+            path_source = f'external_csv: { scenario_path_csv }'
 
         else:
-            phase9_scenario_paths = build_phase9_demo_paths( start_year = 2026, end_year = 2100 )
+            scenario_paths = build_demo_scenario_paths( start_year = 2026, end_year = 2100 )
             path_source = 'demo_ramps'
 
-        phase9_scenario_paths[ 'scenario' ] = phase9_scenario_paths[ 'scenario' ].astype( str )
-        phase9_scenario_paths[ 'year' ] = pd.to_numeric( phase9_scenario_paths[ 'year' ], errors = 'coerce' ).astype( 'Int64' )
+        scenario_paths[ 'scenario' ] = scenario_paths[ 'scenario' ].astype( str )
+        scenario_paths[ 'year' ] = pd.to_numeric( scenario_paths[ 'year' ], errors = 'coerce' ).astype( 'Int64' )
         for col, fill_value in [ 
             ( 'air_temp_add_c', 0.0 ),
             ( 'precip_mult', 1.0 ),
             ( 'wind_speed_mult', 1.0 ),
             ( 'solar_mult', 1.0 ),
         ]:
-            if col not in phase9_scenario_paths.columns:
-                phase9_scenario_paths[ col ] = fill_value
+            if col not in scenario_paths.columns:
+                scenario_paths[ col ] = fill_value
 
-            phase9_scenario_paths[ col ] = pd.to_numeric( phase9_scenario_paths[ col ], errors = 'coerce' ).fillna( fill_value )
+            scenario_paths[ col ] = pd.to_numeric( scenario_paths[ col ], errors = 'coerce' ).fillna( fill_value )
 
     else:
-        phase9_scenario_paths = phase9_scenario_paths.copy( )
-        path_source = 'existing_phase9_scenario_paths'
+        scenario_paths = scenario_paths.copy( )
+        path_source = 'existing_scenario_paths'
 
-    if phase9_scenarios is None:
-        phase9_scenarios = sorted( phase9_scenario_paths[ 'scenario' ].dropna( ).unique( ).tolist( ) )
+    if forecast_scenarios is None:
+        forecast_scenarios = sorted( scenario_paths[ 'scenario' ].dropna( ).unique( ).tolist( ) )
 
-    if phase9_future_year_min is None:
-        phase9_future_year_min = int( phase9_scenario_paths[ 'year' ].dropna( ).min( ) )
+    if forecast_year_min is None:
+        forecast_year_min = int( scenario_paths[ 'year' ].dropna( ).min( ) )
 
-    if phase9_future_year_max is None:
-        phase9_future_year_max = int( phase9_scenario_paths[ 'year' ].dropna( ).max( ) )
+    if forecast_year_max is None:
+        forecast_year_max = int( scenario_paths[ 'year' ].dropna( ).max( ) )
 
-    if phase9_future_dates is None:
-        phase9_future_dates = pd.DataFrame( { 
-            'date': pd.date_range( f'{ phase9_future_year_min }-01-01', f'{ phase9_future_year_max }-12-31', freq = 'D' ),
+    if forecast_dates is None:
+        forecast_dates = pd.DataFrame( { 
+            'date': pd.date_range( f'{ forecast_year_min }-01-01', f'{ forecast_year_max }-12-31', freq = 'D' ),
         } )
-        phase9_future_dates[ 'year' ] = phase9_future_dates[ 'date' ].dt.year
-        phase9_future_dates[ 'doy' ] = phase9_future_dates[ 'date' ].dt.dayofyear.clip( upper = 365 )
-        phase9_future_dates = phase9_future_dates.loc[ phase9_future_dates[ 'year' ].isin( phase9_scenario_paths[ 'year' ].dropna( ).astype( int ) ) ].copy( )
+        forecast_dates[ 'year' ] = forecast_dates[ 'date' ].dt.year
+        forecast_dates[ 'doy' ] = forecast_dates[ 'date' ].dt.dayofyear.clip( upper = 365 )
+        forecast_dates = forecast_dates.loc[ forecast_dates[ 'year' ].isin( scenario_paths[ 'year' ].dropna( ).astype( int ) ) ].copy( )
 
-    phase9_baseline_value_cols = [ 
+    forecast_baseline_value_cols = [ 
         'water_temp_baseline',
         'salinity_baseline',
         'oxygen_baseline',
         'ph_baseline',
         'depth_baseline',
     ]
-    phase9_properties_baseline_fallback = ( 
+    forecast_reference_means_fallback = ( 
         daily_water_final
         .groupby( [ 'region', 'station' ], as_index = False )
         .agg( 
@@ -112,37 +112,37 @@ def run_phase9_station_scan(
         )
     )
 
-    if phase9_properties_baseline is None:
+    if forecast_reference_means is None:
         if properties_baseline is not None:
-            phase9_properties_baseline = properties_baseline.copy( )
+            forecast_reference_means = properties_baseline.copy( )
 
         else:
-            phase9_properties_baseline = phase9_properties_baseline_fallback.copy( )
+            forecast_reference_means = forecast_reference_means_fallback.copy( )
 
-    phase9_properties_baseline = phase9_properties_baseline.merge( 
-        phase9_properties_baseline_fallback,
+    forecast_reference_means = forecast_reference_means.merge( 
+        forecast_reference_means_fallback,
         on = [ 'region', 'station' ],
         how = 'outer',
         suffixes = ( '', '_fallback' ),
     )
-    for col in phase9_baseline_value_cols:
+    for col in forecast_baseline_value_cols:
         fallback_col = f'{ col }_fallback'
-        if col not in phase9_properties_baseline.columns:
-            phase9_properties_baseline[ col ] = phase9_properties_baseline[ fallback_col ]
+        if col not in forecast_reference_means.columns:
+            forecast_reference_means[ col ] = forecast_reference_means[ fallback_col ]
 
         else:
-            phase9_properties_baseline[ col ] = phase9_properties_baseline[ col ].fillna( phase9_properties_baseline[ fallback_col ] )
+            forecast_reference_means[ col ] = forecast_reference_means[ col ].fillna( forecast_reference_means[ fallback_col ] )
 
-        if fallback_col in phase9_properties_baseline.columns:
-            phase9_properties_baseline = phase9_properties_baseline.drop( columns = [ fallback_col ] )
+        if fallback_col in forecast_reference_means.columns:
+            forecast_reference_means = forecast_reference_means.drop( columns = [ fallback_col ] )
 
-    if phase9_cluster_lookup is None:
+    if forecast_cluster_lookup is None:
         if station_baseline is None:
-            raise ValueError( 'station_baseline is required when phase9_cluster_lookup is not provided.' )
+            raise ValueError( 'station_baseline is required when forecast_cluster_lookup is not provided.' )
 
-        phase9_cluster_lookup = station_baseline[ [ 'region', 'station', 'cluster' ] ].copy( )
-        phase9_cluster_lookup[ 'cluster_code' ] = pd.to_numeric( phase9_cluster_lookup[ 'cluster' ], errors = 'coerce' )
-        phase9_cluster_lookup = phase9_cluster_lookup.drop( columns = [ 'cluster' ] )
+        forecast_cluster_lookup = station_baseline[ [ 'region', 'station', 'cluster' ] ].copy( )
+        forecast_cluster_lookup[ 'cluster_code' ] = pd.to_numeric( forecast_cluster_lookup[ 'cluster' ], errors = 'coerce' )
+        forecast_cluster_lookup = forecast_cluster_lookup.drop( columns = [ 'cluster' ] )
 
     station_meta = ( 
         station_baseline_display[ [ 'region', 'station', 'region_name', 'station_name', 'cluster', 'cluster_label', 'cluster_name' ] ]
@@ -204,7 +204,7 @@ def run_phase9_station_scan(
         )
     )
     history_annual = history_annual.merge( history_warm, on = [ 'region', 'station', 'year' ], how = 'left' )
-    history_annual = history_annual.merge( phase9_properties_baseline, on = [ 'region', 'station' ], how = 'left' )
+    history_annual = history_annual.merge( forecast_reference_means, on = [ 'region', 'station' ], how = 'left' )
     history_annual = history_annual.merge( station_meta, on = [ 'region', 'station' ], how = 'left' )
     history_annual[ 'scenario' ] = 'observed_history'
     history_annual[ 'oxygen_plot_abs' ] = history_annual[ 'oxygen_warm_min_abs' ]
@@ -221,8 +221,8 @@ def run_phase9_station_scan(
     )
 
     future_template = ( 
-        pd.DataFrame( { 'scenario': phase9_scenarios, '_tmp': 1 } )
-        .merge( phase9_future_dates.assign( _tmp = 1 ), on = '_tmp', how = 'inner' )
+        pd.DataFrame( { 'scenario': forecast_scenarios, '_tmp': 1 } )
+        .merge( forecast_dates.assign( _tmp = 1 ), on = '_tmp', how = 'inner' )
         .drop( columns = [ '_tmp' ] )
     )
 
@@ -231,7 +231,7 @@ def run_phase9_station_scan(
 
     for idx, station_key in enumerate( station_keys.itertuples( index = False ), start = 1 ):
         if idx == 1 or idx == station_total or idx % progress_every == 0:
-            print( f'phase9 scan progress: { idx } / { station_total } | { station_key.region } / { station_key.station }' )
+            print( f'forecast scan progress: { idx } / { station_total } | { station_key.region } / { station_key.station }' )
 
         station_air = hist_air.loc[ 
             ( hist_air[ 'region' ] == station_key.region )
@@ -267,7 +267,7 @@ def run_phase9_station_scan(
         future_daily[ 'station' ] = station_key.station
         future_daily = future_daily.merge( driver_climatology, on = [ 'region', 'station', 'doy' ], how = 'left' )
         future_daily = future_daily.merge( driver_mean, on = [ 'region', 'station' ], how = 'left' )
-        future_daily = future_daily.merge( phase9_scenario_paths, on = [ 'scenario', 'year' ], how = 'left' )
+        future_daily = future_daily.merge( scenario_paths, on = [ 'scenario', 'year' ], how = 'left' )
 
         for col, station_fill_col in [ 
             ( 'air_temp', 'air_temp_station_mean' ),
@@ -281,11 +281,11 @@ def run_phase9_station_scan(
         future_daily[ 'precip' ] = future_daily[ 'precip' ] * future_daily[ 'precip_mult' ]
         future_daily[ 'wind_speed' ] = future_daily[ 'wind_speed' ] * future_daily[ 'wind_speed_mult' ]
         future_daily[ 'solar' ] = future_daily[ 'solar' ] * future_daily[ 'solar_mult' ]
-        future_daily = add_phase9_driver_rolls( future_daily )
+        future_daily = add_forecast_driver_rolls( future_daily )
 
-        future_daily = future_daily.merge( phase9_properties_baseline, on = [ 'region', 'station' ], how = 'left' )
-        future_daily = future_daily.merge( phase6_context_table, on = [ 'region', 'station' ], how = 'left' )
-        future_daily = future_daily.merge( phase9_cluster_lookup, on = [ 'region', 'station' ], how = 'left' )
+        future_daily = future_daily.merge( forecast_reference_means, on = [ 'region', 'station' ], how = 'left' )
+        future_daily = future_daily.merge( air_water_station_context, on = [ 'region', 'station' ], how = 'left' )
+        future_daily = future_daily.merge( forecast_cluster_lookup, on = [ 'region', 'station' ], how = 'left' )
 
         future_daily[ 'air_temp_minus_water_temp_baseline' ] = future_daily[ 'air_temp' ] - future_daily[ 'water_temp_baseline' ]
         future_daily[ 'air_temp_r7d_minus_water_temp_baseline' ] = future_daily[ 'air_temp_r7d' ] - future_daily[ 'water_temp_baseline' ]
@@ -295,15 +295,15 @@ def run_phase9_station_scan(
         future_daily[ 'wind_speed_x_air_temp' ] = future_daily[ 'wind_speed' ] * future_daily[ 'air_temp' ]
         future_daily[ 'solar_x_air_temp' ] = future_daily[ 'solar' ] * future_daily[ 'air_temp' ]
 
-        for col in phase6_selected_features:
+        for col in air_water_feature_cols:
             if col not in future_daily.columns:
                 future_daily[ col ] = np.nan
 
-        X_p6 = future_daily[ phase6_selected_features ].copy( ).fillna( phase6_selected_fill_values.reindex( phase6_selected_features ) )
-        future_daily[ 'delta_water_temp_pred_p6' ] = phase6_selected_model.predict( X_p6 )
+        X_p6 = future_daily[ air_water_feature_cols ].copy( ).fillna( air_water_fill_values.reindex( air_water_feature_cols ) )
+        future_daily[ 'delta_water_temp_pred_p6' ] = air_water_model.predict( X_p6 )
         future_daily[ 'water_temp_pred' ] = future_daily[ 'water_temp_baseline' ] + future_daily[ 'delta_water_temp_pred_p6' ]
 
-        station_future_year = build_phase9_station_year_features( future_daily )
+        station_future_year = build_forecast_station_year_features( future_daily )
         station_future_year = station_future_year.merge( history_annual_fallback, on = [ 'region', 'station' ], how = 'left' )
         station_future_year[ 'water_temp_baseline_annual_mean' ] = station_future_year[ 'water_temp_baseline_annual_mean' ].fillna( station_future_year[ 'water_temp_hist_annual_fallback' ] )
         station_future_year[ 'salinity_baseline_annual_mean' ] = station_future_year[ 'salinity_baseline_annual_mean' ].fillna( station_future_year[ 'salinity_hist_annual_fallback' ] )
@@ -311,10 +311,10 @@ def run_phase9_station_scan(
         if 'depth_baseline_annual_mean' in station_future_year.columns:
             station_future_year[ 'depth_baseline_annual_mean' ] = station_future_year[ 'depth_baseline_annual_mean' ].fillna( station_future_year[ 'depth_hist_annual_fallback' ] )
 
-        for target in phase7_targets:
-            model_t = phase7_model_store.get( target )
-            feature_cols_t = phase7_feature_store.get( target, [ ] )
-            fill_values_t = phase7_fill_store.get( target, pd.Series( dtype = 'float64' ) )
+        for target in response_targets:
+            model_t = response_model_store.get( target )
+            feature_cols_t = response_feature_store.get( target, [ ] )
+            fill_values_t = response_fill_store.get( target, pd.Series( dtype = 'float64' ) )
 
             if model_t is None or len( feature_cols_t ) == 0:
                 continue
@@ -364,17 +364,17 @@ def run_phase9_station_scan(
             history_plot
             .sort_values( [ 'region', 'station', 'year' ] )
             .groupby( [ 'region', 'station' ] )[ source_col ]
-            .transform( lambda values: values.rolling( window = phase9_rolling_window_years, min_periods = 3 ).mean( ) )
+            .transform( lambda values: values.rolling( window = forecast_rolling_window_years, min_periods = 3 ).mean( ) )
         )
 
     history_plot[ 'mean_annual_water_temp' ] = history_plot[ 'water_temp_roll5y' ]
     history_plot[ 'mean_annual_salinity' ] = history_plot[ 'salinity_roll5y' ]
     history_plot[ 'mean_annual_oxygen' ] = history_plot[ 'oxygen_roll5y' ]
     history_plot[ 'mean_annual_depth' ] = history_plot[ 'depth_baseline' ]
-    history_plot = pd.concat( [ history_plot, history_plot.apply( phase9_classify_regime_row, axis = 1 ) ], axis = 1 )
+    history_plot = pd.concat( [ history_plot, history_plot.apply( classify_regime_row, axis = 1 ) ], axis = 1 )
 
     projection_paths = [ ]
-    for scenario_name in phase9_scenarios:
+    for scenario_name in forecast_scenarios:
         hist_path = history_annual.copy( )
         hist_path[ 'scenario' ] = scenario_name
         future_path = future_station_year.loc[ future_station_year[ 'scenario' ] == scenario_name ].copy( )
@@ -385,18 +385,18 @@ def run_phase9_station_scan(
             path_frame[ out_col ] = ( 
                 path_frame
                 .groupby( [ 'region', 'station' ] )[ source_col ]
-                .transform( lambda values: values.rolling( window = phase9_rolling_window_years, min_periods = 3 ).mean( ) )
+                .transform( lambda values: values.rolling( window = forecast_rolling_window_years, min_periods = 3 ).mean( ) )
             )
 
         path_frame[ 'mean_annual_water_temp' ] = path_frame[ 'water_temp_roll5y' ]
         path_frame[ 'mean_annual_salinity' ] = path_frame[ 'salinity_roll5y' ]
         path_frame[ 'mean_annual_oxygen' ] = path_frame[ 'oxygen_roll5y' ]
         path_frame[ 'mean_annual_depth' ] = path_frame[ 'depth_baseline' ]
-        path_frame = pd.concat( [ path_frame, path_frame.apply( phase9_classify_regime_row, axis = 1 ) ], axis = 1 )
+        path_frame = pd.concat( [ path_frame, path_frame.apply( classify_regime_row, axis = 1 ) ], axis = 1 )
         projection_paths.append( path_frame )
 
     projection_plot = pd.concat( projection_paths, ignore_index = True ) if len( projection_paths ) > 0 else pd.DataFrame( )
-    projection_future_only = projection_plot.loc[ projection_plot[ 'year' ] >= phase9_future_year_min ].copy( )
+    projection_future_only = projection_plot.loc[ projection_plot[ 'year' ] >= forecast_year_min ].copy( )
 
     crossing_summary = ( 
         projection_future_only
@@ -508,9 +508,9 @@ def run_phase9_station_scan(
         'region_codes_norm': region_codes_norm,
         'station_meta': station_meta,
         'station_keys': station_keys,
-        'scenarios': phase9_scenarios,
-        'future_year_min': phase9_future_year_min,
-        'future_year_max': phase9_future_year_max,
+        'scenarios': forecast_scenarios,
+        'future_year_min': forecast_year_min,
+        'future_year_max': forecast_year_max,
         'future_station_year': future_station_year,
         'history_annual': history_annual,
         'history_plot': history_plot,
